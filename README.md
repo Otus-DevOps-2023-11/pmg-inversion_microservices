@@ -169,3 +169,147 @@ pmg-inversion microservices repository
 	docker stop reddit && docker rm reddit
 	docker run --name reddit --rm -it grooou/otus-reddit:1.0 bash
 		root@73654b356d12:/# ls /
+
+
+
+
+## ДЗ - 13
+### Docker-образы. Микросервисы
+
+#### Что сделано
+
+1. Подключаемся к ранее созданному Docker host
+	docker-machine ls
+	eval $(docker-machine env docker-host)
+
+2. Скачивание и распаковка архива (+ переименуем его в src)
+	wget https://github.com/express42/reddit/archive/microservices.zip
+	sudo apt install unzip
+	unzip microservices.zip
+	rm microservices.zip
+	mv reddit-microservices/ src/
+
+3. создание 3 Dockerfile для 3 приложений
+	в файле ./post-py/Dockerfile перед установкой зависимостей добавляем  
+		RUN apk add --no-cache gcc musl-dev
+		RUN pip install --upgrade pip
+
+	в файле ./comment/Dockerfile меняем версию ruby с 2.2 на 2.7 и добавляем 
+		RUN bundle update --bundler
+
+	в файле ./ui/Dockerfile меняем версию ruby с 2.2 на 2.7 и добавляем 
+		RUN bundle update --bundler
+		RUN gem install bundler:1.17.2
+
+4. Скачивание последнего образ MongoDB
+	docker pull mongo:latest
+
+5. Сборка образов
+	docker build -t grooou/post:1.0 ./post-py
+	docker build -t grooou/comment:1.0 ./comment
+	docker build -t grooou/ui:1.0 ./ui
+
+	Сборка ui началась не с первого шага, т.к. образ ruby был уже скачен и был использовал локально
+
+6. создание сети для приложений 
+	docker network create reddit
+
+7. запуск контейнеров
+	docker run -d --name=mongo --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+	docker run -d --name=post --network=reddit --network-alias=post grooou/post:1.0
+	docker run -d --name=comment --network=reddit --network-alias=comment grooou/comment:1.0
+	docker run -d --name=ui --network=reddit -p 9292:9292 grooou/ui:1.0
+
+8. проверка работоспособности
+	ui работает, но создать пост не получилось. 
+	Прошлось даунгрейдить версию MongoDB. т.к. сервис post использует версию библиотеки, которая больше не поддерживается в текущей версии MongoDB.
+	заработало с версией mongo:4.4.7-rc1
+
+#### Задание со *
+- остановка контейнеров docker stop mongo post comment ui
+- удаление контейнеров docker stop mongo post comment ui
+
+- запуск контейнеров с новыми переменными окружения 
+	docker run -d --name=mongo --network=reddit -e POST_SERVICE_HOST="post_new" -e COMMENT_SERVICE_HOST="comment_new" --network-alias=post_db_new --network-alias=comment_db mongo:4.4.7-rc1
+	docker run -d --name=post --network=reddit -e POST_DATABASE="posts_new" -e POST_DATABASE_HOST="post_db_new" --network-alias=post_new grooou/post:1.0
+	docker run -d --name=comment --network=reddit -e COMMENT_DATABASE="comments_new" -e COMMENT_DATABASE_HOST="comment_db_new" --network-alias=comment_new grooou/comment:1.0
+	docker run -d --name=ui --network=reddit -p 9292:9292 grooou/ui:1.0
+
+- всё работает 
+
+
+
+## ДЗ - 14
+### Docker: сети, docker-compose
+
+#### Что сделано
+
+1. На примере `joffotron/docker-net-tools` и проекта `reddit` протестированы `network drivers`:
+   - **none**
+     - `docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig`
+   - **host**
+     - `docker run -ti --rm --network host joffotron/docker-net-tools -c ifconfig`
+       - Вывод практически идентичен с выводом `docker-machine ssh default ifconfig`
+       - за исключением того, что для inet6 добавляется `%32557`, например `fe80::42:dbff:fe93:8f82%32557/64`
+     - Повторный запуск docker run --network host -d nginx пересоздает единственный экземпляр, а прошлый переводит в состояние "Exited"
+   - **bridge**
+     - `docker network create reddit --driver bridge`
+       - **Падает** если не указывать соответствующие доменные имена:
+         - `docker run -d --network=reddit --volume=reddit_db:/data/db mongo:4.4.7-rc1`
+         - `docker run -d --network=reddit pmgzzz/post:1.0`
+         - `docker run -d --network=reddit pmgzzz/comment:1.0`
+         - `docker run -d --network=reddit -p 9292:9292 pmgzzz/ui:1.0`
+       - **Не падает** если указать соответствующие доменные имена:
+         - `docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db --volume=reddit_db:/data/db mongo:4.4.7-rc1`
+         - `docker run -d --network=reddit --network-alias=post pmgzzz/post:1.0`
+         - `docker run -d --network=reddit --network-alias=comment pmgzzz/comment:1.0`
+         - `docker run -d --network=reddit -p 9292:9292 pmgzzz/ui:1.0`
+
+2. Разнесение по разным bridge-сетям
+   - Новые docker-сети:
+     - `docker network create back_net --subnet=10.0.2.0/24`
+     - `docker network create front_net --subnet=10.0.1.0/24`
+   - Изменение параметров запуска
+     - `docker run -d --network=back_net --name=mongo_db --network-alias=post_db --network-alias=comment_db --volume=reddit_db:/data/db mongo:4.4.7-rc1`
+     - `docker run -d --network=back_net --name=post pmgzzz/post:1.0`
+     - `docker run -d --network=back_net --name=comment pmgzzz/comment:1.0`
+     - `docker run -d --network=front_net --name=ui -p 9292:9292 pmgzzz/ui:1.0`
+   - Проблема:
+     - Но так не взлетает, поскольку контейнеры post и comment должны уметь ходить в обе сети
+     - Если указать что-то вида
+       - `docker run -d --network=back_net --network=front_net --name=post pmgzzz/post:1.0`
+     - то такой фокус не прокатит, ибо:
+       - `docker: Error response from daemon: Container cannot be connected to network endpoints: back_net, front_net`
+     - Решить проблему можно за счет коннекта сетей:
+       - `docker network connect front_net post`
+       - `docker network connect front_net comment`
+
+3. Изучение Bridge-network driver
+   - Установка пакета bridge-utils
+     - `docker-machine ssh docker-host`
+     - `sudo apt-get update && sudo apt-get install bridge-utils`
+   - Исследование
+  	 - `docker network ls`
+  	 - `ifconfig | grep br`
+  	 - `ifconfig | grep veth`
+  	 - `sudo iptables -nL -t nat`
+  	 - `ps ax | grep docker-proxy` - *один из проксей слушает порт 9292*
+
+4. Docker-compose
+   - Создан файл `src/docker-compose.yml`
+   - Запущен
+   - Внесены изменения 
+     - Кейс с множеством сетей
+     - Параметризация 
+     - Созданы файлы
+       - .env
+       - .env.example
+     - Запуск командой
+       - `docker-compose --env-file .env up -d`
+     - Базовое имя проекта определяется через название директории, где расположен `docker-compose.yml`. Задать его можно либо изменением названия директории, либо при помощи ключа `-p` (для docker-compose он выбирает название проекта, а не маппинг портов, как у обычного docker)
+
+#### Задание со *
+	- Создан файл docker-compose.override.yml
+    	- Добавлены возможности:
+        	- Изменять код каждого из приложений, не выполняя сборку образа
+        	- Запускать puma для руби приложений в дебаг-режиме с двумя воркерами (флаги --debug и -w 2)
