@@ -11,6 +11,8 @@ services:
         aliases:
           - post_db
           - comment_db
+    environment:
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
 
   ui:
     build: ../src/ui/docker_build.sh
@@ -19,6 +21,14 @@ services:
       - ${INNER_UI_PORT}:${OUTER_UI_PORT}/tcp
     networks:
       - front_net
+    logging:
+      driver: 'fluentd'
+      options:
+        fluentd-address: localhost:24224
+        tag: service.ui
+        fluentd-async: 'true'
+    environment:
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
 
   post:
     build: ../src/post-py/docker_build.sh
@@ -26,12 +36,29 @@ services:
     networks:
       - back_net
       - front_net
+    logging:
+      driver: 'fluentd'
+      options:
+        fluentd-address: localhost:24224
+        tag: service.post
+        fluentd-async: 'true'
+    environment:
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
+
   comment:
     build: ../src/comment/docker_build.sh
     image: ${USER_NAME}/comment:${COMMENT_VERSION}
     networks:
       - back_net
       - front_net
+    logging:
+      driver: 'fluentd'
+      options:
+        fluentd-address: localhost:24224
+        tag: service.comment
+        fluentd-async: 'true'
+    environment:
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
 
   prometheus:
     image: ${USER_NAME}/prometheus
@@ -58,6 +85,9 @@ services:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'
+    networks:
+      - back_net
+      - front_net
 
   mongodb-exporter:
     image: bitnami/mongodb-exporter:latest
