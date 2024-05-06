@@ -313,3 +313,62 @@ pmg-inversion microservices repository
     	- Добавлены возможности:
         	- Изменять код каждого из приложений, не выполняя сборку образа
         	- Запускать puma для руби приложений в дебаг-режиме с двумя воркерами (флаги --debug и -w 2)
+
+
+## ДЗ - 17
+### Введение в мониторинг. Системы мониторинга.
+
+#### Что сделано
+1. Prometheus: запуск, конфигурация, знакомство
+   - Создана ВМ
+     - `84.201.159.116`
+   - Через `docker-machine` создано подключение к ВМ 
+   - Развернут prometheus из докерхаба
+   - Поизучал интерфейс
+   - Создана директория `docker` куда перетащено всё старое к докеру относящееся
+     - Директорию `src` оставил нетронутой на всякий случай
+   - Создана директория `monitoring\prometheus`
+     - `Dockerfile`
+     - `prometheus.yml`
+   - Создан свой образ
+     - `pmgzzz/prometheus`
+   - Сборка каждого из микросервисов
+     - `for i in ui post-py comment; do cd src/$i; bash docker_build.sh; cd -; done`
+   - В `docker/docker-compose.yml` добавлен сервис prometheus
+   - Адаптация к запуску
+     - Проверены переменные
+     - Проверены сети
+   - Сервисы подняты, работают
+
+2. Мониторинг состояния микросервисов
+   - Проверены endpoint'ы
+   - Healthcheck
+     - А ведь и правда не работал comment
+       - Не было алиасов к нетворку
+     - Наигрался с healthcheck'ами
+
+3. Сбор метрик хоста
+   - В `docker/docker-compose.yml` добавлен сервис node-exporter
+   - Сбор данных за node-exporter'ом также добавлен в конфигуразционный yml prometheus'а
+   - Пересобран новый докер-образ для prometheus'а
+   - Сервисы переподняты
+   - Смоделирована нагрузка на хост с анализом результатов в prometheus
+
+4. Отправка образов на DockerHub
+   - Команды
+     - docker push $USER_NAME/ui
+     - docker push $USER_NAME/comment
+     - docker push $USER_NAME/post
+     - docker push $USER_NAME/prometheus
+   - Ссылки на образы в Docker Hub
+     - https://hub.docker.com/r/pmgzzz/ui
+     - https://hub.docker.com/r/pmgzzz/comment
+     - https://hub.docker.com/r/pmgzzz/post
+     - https://hub.docker.com/r/pmgzzz/prometheus
+
+5. Удаление виртуалки
+   - Виртуалка удалена
+
+#### Задание со *
+	- Добавлен mongodb-exporter
+	- Добавлен blackbox-exporter
