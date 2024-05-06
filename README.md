@@ -423,4 +423,5 @@ pmg-inversion microservices repository
    - Перезапущены сервисы
      - `docker-compose -f docker-compose-logging.yml -f docker-compose.yml down`
      - `docker-compose -f docker-compose-logging.yml -f docker-compose.yml up -d`
-   - 
+   - Осуществлено ознакомиление с интерфейсом zipkin
+   - Выполнен анализ трейсов
