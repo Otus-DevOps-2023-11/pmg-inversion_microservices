@@ -14,3 +14,5 @@ vault.key
 .molecule
 .cache
 .pytest_cache
+build_info.txt
+utils
