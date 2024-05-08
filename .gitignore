@@ -16,3 +16,4 @@ vault.key
 .pytest_cache
 build_info.txt
 utils
+yc
