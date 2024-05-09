@@ -450,3 +450,50 @@ pmg-inversion microservices repository
    - Манифесты применяются
    - Кластер удален
 
+## ДЗ - 20
+### Kubernetes. Запуск кластера и приложения. Модель безопасности
+1. Развернуть локальное окружение для работы с Kubernetes
+   - Установлен kubectl
+   - Установлен minikube
+   - Созданы deployment
+     - `comment-deployment.yml`
+     - `mongo-deployment.yml`
+     - `post-deployment.yml`
+     - `ui-deployment.yml`
+   - Получилось поиграться с `kubectl port-forward`
+   - Созданы сервисы доступа приложений
+     - `comment-service.yml`
+     - `mongodb-service.yml`
+     - `post-service.yml`
+     - `ui-service.yml`
+   - Созданы сервисы доступа к БД
+     - `comment-mongodb-service.yml`
+     - `post-mongodb-service.yml`
+   - Создан namespace для dev-окружаения
+     - `dev-namespace.yml`
+   - Запущено, проверено, работает и повторемо
+     - `minikube start`
+     - `kubectl apply -f dev-namespace.yml`
+     - `kubectl apply -n dev -f ./`
+     - ...
+	 - `minikube delete --all`
+
+2. Развернуть Kubernetes в Yandex Cloud
+   - Развернут кластер
+   - Развернута группа узлов
+   - Кластер добавлен в kubeconfig
+     - `yc managed-kubernetes cluster get-credentials cat34nu874fmkea0v8sc --external`
+
+3. Запустить reddit в Kubernetes
+   - Запущен reddit
+     - `kubectl apply -f ./kubernetes/reddit/dev-namespace.yml`
+     - `kubectl apply -f ./kubernetes/reddit/ -n dev`
+   - Проверен список нод
+     - `kubectl get nodes -o wide`
+       - 158.160.103.46
+       - 51.250.1.153
+   - Определен порт публикации веб морды
+     - `kubectl describe service ui -n dev | grep NodePort`
+       - 30820/TCP
+   - По адресу http://158.160.103.46:30820 все работает!
+   - По адресу http://51.250.1.153:30820 все также работает!
