@@ -425,3 +425,28 @@ pmg-inversion microservices repository
      - `docker-compose -f docker-compose-logging.yml -f docker-compose.yml up -d`
    - Осуществлено ознакомиление с интерфейсом zipkin
    - Выполнен анализ трейсов
+
+## ДЗ - 19
+### Введение в kubernetes
+1. Создание примитивов
+  - Создана директория `kubernetes/reddit`
+    - Созданы файлы
+      - `comment-deployment.yml`
+      - `mongo-deployment.yml`
+      - `post-deployment.yml`
+      - `ui-deployment.yml`
+
+2. Установка k8s на двух нодах при помощи утилиты `kubeadm`
+   - Развернуты две ВМ 
+     - 158.160.33.63
+     - 158.160.116.18
+   - Инициализирована мастер нода
+     - `kubeadm init --apiserver-cert-extra-sans=158.160.33.63 --apiserver-advertise-address=0.0.0.0 --control-plane-endpoint=158.160.33.63 --pod-network-cidr=10.244.0.0/16`
+   - Присоединена доп. нода
+	 - `kubeadm join 158.160.33.63:6443 --token evfu3m.ej4fvz7oi1apzbae --discovery-token-ca-cert-hash sha256:2d79e70eb713fb6f48c93e1c42805b908f2875e73a2d48683f646fb1954b13a5`
+   - Установлен calico через calico.yaml
+     - Раскомментирован параметр `CALICO_IPV4POOL_CIDR` и установлено занчение `10.244.0.0/16`
+   - Ноды стали ready
+   - Манифесты применяются
+   - Кластер удален
+
