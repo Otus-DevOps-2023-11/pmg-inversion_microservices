@@ -426,6 +426,7 @@ pmg-inversion microservices repository
    - Осуществлено ознакомиление с интерфейсом zipkin
    - Выполнен анализ трейсов
 
+
 ## ДЗ - 19
 ### Введение в kubernetes
 1. Создание примитивов
@@ -449,6 +450,7 @@ pmg-inversion microservices repository
    - Ноды стали ready
    - Манифесты применяются
    - Кластер удален
+
 
 ## ДЗ - 20
 ### Kubernetes. Запуск кластера и приложения. Модель безопасности
@@ -497,3 +499,96 @@ pmg-inversion microservices repository
        - 30820/TCP
    - По адресу http://158.160.103.46:30820 все работает!
    - По адресу http://51.250.1.153:30820 все также работает!
+
+
+## ДЗ - 21
+### Ingress-контроллеры и сервисы в Kubernetes
+
+1. Kube-dns - эээксперименты
+   - Отключен kube-dns (заскейлен в 0)
+     - `kubectl scale deployment --replicas 0 -n kube-system kube-dns-autoscaler`
+     - `kubectl scale deployment --replicas 0 -n kube-system kube-dns`
+   - Попытка из-под пода достучаться по имени до сервисов 
+     - Например, из-под пода post до сервиса comment
+       - `kubectl exec -n dev post-79cbf5849b-9mhmv -- ping comment`
+         - где post-79cbf5849b-9mhmv - может быть имя любого pod-а, в данном случае - один из подов сервиса post
+   - Возвращение kube-dns-autoscale в исходную
+     - `kubectl scale deployment --replicas 1 -n kube-system kube-dns-autoscaler`
+   - Повторная попытка из-под пода достучаться по имени до сервисов 
+     - `kubectl exec -n dev post-79cbf5849b-9mhmv -- ping comment`
+
+2. Load-balancer
+   - Изменен ui-service.yml
+     - Добавлен load-balancer
+   - Персобрано
+   - Проверено, что поднялось
+     - `kubectl get service -n dev --selector component=ui`
+       - 80:32092/TCP
+   - Теперь доступ к ui осуществляется без порта (ip при переподнятии изменился) и внешний 80-й порт скрывает порт 32092
+     - http://158.160.157.31/
+     - А в yc у сервиса ui стал тип "LoadBalancer EXT"
+
+3. Ingress
+   - Установлен ingress
+     - kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.6/deploy/static/provider/cloud/deploy.yaml
+     - Версия в соответствии с табличкой тут: https://github.com/kubernetes/ingress-nginx
+   - Создан Single-Service-Ingress
+     - ui-ingress.yml
+   - Убран load-balancer из ui-service.yml
+   - ui-ingress переделан под обработку правила
+     - Теперь у ingress свой собственный публичный ip, но доступ к приложению также без укзания порта происходит:
+       - http://158.160.144.4/
+
+4. Secret
+   - Подготовлен сертификат с использованием IP как CN
+     - `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=158.160.144.4"`
+       - создан файл `tls.crt`
+   - Сертификат загружен в кластер k8s
+     - `kubectl create secret tls ui-ingress --key tls.key --cert tls.crt -n dev`
+       - Проверка
+         - `kubectl describe secret ui-ingress -n dev`
+   - В ui-ingress.yml добавлена настройка на прием только HTTPS трафика
+   - Протокол HTTP не удалился у существующего ingress-правила
+     - Ручное удаление и пересоздание
+       - `kubectl delete ingress ui -n dev`
+       - `kubectl apply -f ui-ingress.yml -n dev`
+   - Сделан secret.yml в качестве k8s-манифеста
+
+5. Network Policy
+   - Включена Network Policy
+     - NB! В YC есть ограничение:
+       - `You can enable network policies only when creating a cluster.`
+       - https://yandex.cloud/en/docs/managed-kubernetes/concepts/network-policy?utm_referrer=https%3A%2F%2Fyandex.ru%2F
+   - Создан файл Network Policy для mongoDB
+     - `mongo-network-policy.yml`
+     - UPD: Добавлены все входящие подключения от POD-ов с lebel-ом post
+   - Применен
+     - `kubectl apply -f mongo-network-policy.yml -n dev`
+
+6. Хранилище для БД
+   - Проведен эксперимент
+     - Создан пост в приложении
+     - Удален deployment для mongo
+     - Deployment для mongo создан заново
+     - Результат:
+       - При остановке POD-а содержимое emptydir удалится навсегда
+
+7. Подключение сетевого хранилища
+   - Создан диск в ya.cloud
+     - `yc compute disk create \`
+	   `--name k8s \`
+       `--size 4 \`
+       `--description "disk for k8s" \`
+	   `--zone ru-central1-a`
+	 - Проверка 
+    	 - `yc compute disk list`
+  	     - fhm1jfqe98d0e4l67vmm
+     - Для mongo создан Persistent Volume - ресурс
+       - mongo-pv.yml
+     - Для mongo создан Persistent Volume Claim - запрос на выделение части ресурса для сервисов
+       - mong-pvc.yml
+     - PVC интегрирован в deployment mongo
+       - изменения в `mongo-deployment.yml`
+   - mongo-deployment пересоздан
+   - pod удален и запущен заново
+     - данные сохранились
