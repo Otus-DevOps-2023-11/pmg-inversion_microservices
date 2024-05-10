@@ -584,9 +584,9 @@ pmg-inversion microservices repository
     	 - `yc compute disk list`
   	     - fhm1jfqe98d0e4l67vmm
      - Для mongo создан Persistent Volume - ресурс
-       - mongo-pv.yml
+       - mongo-volume.yml
      - Для mongo создан Persistent Volume Claim - запрос на выделение части ресурса для сервисов
-       - mong-pvc.yml
+       - mong-claim.yml
      - PVC интегрирован в deployment mongo
        - изменения в `mongo-deployment.yml`
    - mongo-deployment пересоздан
