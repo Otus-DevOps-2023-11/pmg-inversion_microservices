@@ -6,6 +6,7 @@ metadata:
   labels:
     app: reddit
     component: mongo
+    post-db: "true"
     comment-db: "true"
 spec:
   replicas: 1
@@ -19,14 +20,26 @@ spec:
       labels:
         app: reddit
         component: mongo
+        post-db: "true"
         comment-db: "true"
     spec:
       containers:
-        - image: mongo:3.2
-          name: mongo
-          volumeMounts: # Точка монтирования в контейнере (не в POD-е)
-            - name: mongo-persistent-storage
-              mountPath: /data/db
-      volumes: # Ассоциированные с POD-ом Volume-ы
-        - name: mongo-persistent-storage
-          emptyDir: {}
+      - image: mongo:3.2
+        name: mongo
+        volumeMounts:
+        - name: mongo-gce-pd-storage
+          mountPath: /data/db
+      volumes:
+        - name: mongo-gce-pd-storage
+          persistentVolumeClaim:
+            claimName: mongo-pvc
+    # spec:
+    #   containers:
+    #     - image: mongo:3.2
+    #       name: mongo
+    #       volumeMounts: # Точка монтирования в контейнере (не в POD-е)
+    #         - name: mongo-persistent-storage
+    #           mountPath: /data/db
+    #   volumes: # Ассоциированные с POD-ом Volume-ы
+    #     - name: mongo-persistent-storage
+    #       emptyDir: {} # При создании POD-а с таким типом просто создается пустой docker-volume. При остановке POD-а содержимое emptydir удалится навсегда
